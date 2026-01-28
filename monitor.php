@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor Live - SiGanteng (PHP Version)</title>
+    <title>Monitor Live - SiGanteng (Hybrid Cloud)</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 
@@ -89,9 +89,12 @@
         .telat-img { width: 35px; height: 35px; border-radius: 50%; border: 1px solid var(--neon-red); margin-right: 10px; filter: grayscale(1) contrast(1.2); }
         .telat-time { margin-left: auto; font-family: 'Share Tech Mono', monospace; color: var(--neon-red); font-weight: 700; }
 
-        .box-live { flex: 2.2; border-top: 2px solid var(--neon-blue); }
+        .box-live { flex: 2.2; border-top: 2px solid var(--neon-blue); position: relative; transition: all 0.3s; }
+        .box-live.flash-active { box-shadow: 0 0 50px var(--neon-blue); border-color: white; transform: scale(1.02); z-index: 50; }
         .live-header-big { padding: 15px; font-size: 1.1em; font-weight: 800; color: var(--neon-blue); border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(14, 165, 233, 0.05); display: flex; align-items: center; gap: 10px; }
-        .live-card-big { display: flex; align-items: center; padding: 12px; margin-bottom: 8px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent); border-radius: 12px; border-left: 4px solid var(--neon-green); transition: transform 0.3s; }
+        .live-card-big { display: flex; align-items: center; padding: 12px; margin-bottom: 8px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent); border-radius: 12px; border-left: 4px solid var(--neon-green); transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; transform: translateX(-50px); }
+        .live-card-big.show { opacity: 1; transform: translateX(0); }
+        .live-card-big.new-entry { background: linear-gradient(90deg, rgba(16, 185, 129, 0.2), transparent); border-left-width: 6px; border-left-color: white; }
         .live-card-big.is-telat { border-left-color: var(--neon-red); background: rgba(239, 68, 68, 0.05); }
         .live-img { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); margin-right: 15px; flex-shrink: 0; background: black; }
         .live-name { font-weight: 700; font-size: 1.1em; color: white; margin-bottom: 2px; text-shadow: 0 2px 4px black; }
@@ -111,7 +114,7 @@
 </head>
 <body>
 
-    <button onclick="forceRefreshMaster()" class="refresh-btn">🔄 Reset Cache v3</button>
+    <button onclick="window.forceRefreshMaster()" class="refresh-btn">🔄 Update Data Master</button>
 
     <div class="header">
         <div class="brand-left">
@@ -162,7 +165,7 @@
                     <div class="stat-item"><h4 class="c-alpha">BELUM</h4><p id="total-alpha">0</p></div>
                 </div>
                 
-                <div id="data-source-indicator" style="position:absolute; bottom:5px; right:10px; font-size:9px; color:rgba(255,255,255,0.2);">Waiting...</div>
+                <div id="data-source-indicator" style="position:absolute; bottom:5px; right:10px; font-size:9px; color:rgba(255,255,255,0.2);">Connecting...</div>
             </div>
 
             <div class="box-belum">
@@ -190,7 +193,7 @@
                 </div>
             </div>
 
-            <div class="box-live">
+            <div class="box-live" id="box-live-container">
                 <div class="live-header-big">
                     <span><i class='bx bxs-camera-movie'></i> LIVE PRESENSI</span>
                     <span style="font-size:0.7em; font-weight:400; color:#94a3b8; margin-left:auto;"><i class='bx bxs-circle' style="color:red; animation: breathe 1s infinite;"></i> REC</span>
@@ -211,15 +214,37 @@
         </marquee>
     </div>
 
-    <script>
+    <audio id="sound-scan" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        
+        // IMPORT KTP SEKOLAH
+        import { KODE_SEKOLAH } from "./config_sekolah.js";
+
+        // CONFIG FIREBASE (Sama dengan siswa.php)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXWR-_aJyoMrUjTeNQYlcPD8p3eu58yOo",
+            authDomain: "siganteng-absensi.firebaseapp.com",
+            databaseURL: "https://siganteng-absensi-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "siganteng-absensi",
+            storageBucket: "siganteng-absensi.firebasestorage.app",
+            messagingSenderId: "917873420012",
+            appId: "1:917873420012:web:0fe1a9eddc5f94959ba7c9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
         const JAM_BATAS_TERLAMBAT = "07:00:00"; 
         const DEFAULT_IMG = "https://cdn-icons-png.flaticon.com/512/847/847969.png";
-
         let allSiswa = [];        
         let dataAbsenHariIni = []; 
         let validStudentNISNs = new Set();
+        let soundEffect = document.getElementById('sound-scan');
 
-        // 1. LOAD MASTER SISWA (CACHE SYSTEM)
+        // 1. LOAD MASTER SISWA (TETAP DARI PHP AGAR IRIT)
         async function loadMasterSiswa() {
             const cacheKey = 'cache_master_siswa_v3_php';
             const cachedSiswa = localStorage.getItem(cacheKey);
@@ -227,132 +252,162 @@
             
             if(cachedSiswa) {
                 const parsed = JSON.parse(cachedSiswa);
-                const now = new Date().getTime();
-                if (now - parsed.timestamp < 24 * 60 * 60 * 1000) {
-                    console.log("⚡ [HEMAT] Local Cache used");
-                    indicator.innerText = "Source: Local Cache";
+                // Cache valid 24 jam
+                if ((new Date().getTime() - parsed.timestamp) < 24 * 60 * 60 * 1000) {
+                    console.log("⚡ [HEMAT] Pakai Cache Siswa");
                     allSiswa = parsed.data;
-                    allSiswa.forEach(s => validStudentNISNs.add(s.username));
-                    document.getElementById('total-populasi').innerText = allSiswa.length;
-                    startMonitorAbsen();
+                    finishLoadMaster();
                     return;
                 }
             }
 
-            console.log("⚠️ Fetching Master Data from PHP...");
-            indicator.innerText = "Source: Server Fetching...";
-            indicator.style.color = "orange";
-
+            console.log("⚠️ Download Data Siswa dari Server...");
+            indicator.innerText = "Downloading Master Data...";
             try {
+                // Pastikan file ini ada, kalau tidak ada buat dummy
                 const res = await fetch('api_monitor.php?action=get_master_siswa').then(r=>r.json());
                 allSiswa = res;
-                validStudentNISNs.clear();
-                allSiswa.forEach(s => validStudentNISNs.add(s.username));
-                
-                localStorage.setItem(cacheKey, JSON.stringify({
-                    timestamp: new Date().getTime(),
-                    data: allSiswa
-                }));
-
-                indicator.innerText = "Source: Server (Cached)";
-                indicator.style.color = "#10b981";
-                document.getElementById('total-populasi').innerText = allSiswa.length;
-                startMonitorAbsen();
+                localStorage.setItem(cacheKey, JSON.stringify({ timestamp: new Date().getTime(), data: allSiswa }));
+                finishLoadMaster();
             } catch (error) { 
-                console.error(error); 
-                indicator.innerText = "Error Fetching Data";
+                console.error("Gagal load siswa:", error);
+                indicator.innerText = "Error Master Data";
             }
         }
 
-        window.forceRefreshMaster = () => {
-            if(confirm("Download ulang data siswa terbaru?")) {
-                localStorage.removeItem('cache_master_siswa_v3_php');
-                location.reload();
-            }
-        }
-
-        // 2. POLLING REALTIME (Pengganti WebSocket Firebase)
-        function startMonitorAbsen() {
-            // Panggil pertama kali
-            fetchLiveData();
-            // Lalu panggil setiap 3 detik
-            setInterval(fetchLiveData, 3000);
-        }
-
-        function fetchLiveData() {
-            fetch('api_monitor.php?action=get_live_absen')
-                .then(r => r.json())
-                .then(data => {
-                    dataAbsenHariIni = data;
-                    updateTampilanLayar();
-                })
-                .catch(e => console.error("Polling Error:", e));
-        }
-
-        function updateTampilanLayar() {
-            const listHadir = dataAbsenHariIni.filter(d => d.status.includes("Masuk") || d.status.includes("Hadir") || d.status.includes("Pulang"));
-            const listIzin = dataAbsenHariIni.filter(d => d.status.includes("Sakit") || d.status.includes("Izin"));
-            const nisnHadir = dataAbsenHariIni.map(d => d.nisn); 
+        function finishLoadMaster() {
+            validStudentNISNs.clear();
+            allSiswa.forEach(s => validStudentNISNs.add(s.username)); // s.username adalah NISN
+            document.getElementById('total-populasi').innerText = allSiswa.length;
             
-            const totalPopulasi = allSiswa.length > 0 ? allSiswa.length : 0; 
-            const countIzin = listIzin.length;
-            const countHadir = listHadir.length;
-            const totalMasuk = countHadir + countIzin;
+            // SETELAH MASTER SIAP, BARU NYALAKAN RADAR FIREBASE
+            startFirebaseListener();
+        }
+
+        // 2. RADAR FIREBASE (REALTIME LISTENER)
+        function startFirebaseListener() {
+            const today = new Date().toISOString().split('T')[0];
+            const indicator = document.getElementById('data-source-indicator');
             
+            console.log("📡 Menyalakan Radar Firebase...");
+            indicator.innerText = "Connecting Firebase...";
+
+            // QUERY HANYA DATA HARI INI & SEKOLAH INI
+            const q = query(
+                collection(db, "presensi_harian"),
+                where("id_sekolah", "==", KODE_SEKOLAH),
+                where("tanggal", "==", today)
+            );
+
+            // MAGIC HAPPENS HERE: onSnapshot
+            onSnapshot(q, (snapshot) => {
+                indicator.innerText = "● LIVE STREAM";
+                indicator.style.color = "#10b981";
+                indicator.style.textShadow = "0 0 5px #10b981";
+
+                let adaDataBaru = false;
+
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        const d = change.doc.data();
+                        
+                        // FORMAT DATA FIREBASE -> FORMAT TAMPILAN
+                        // Ambil jam dari waktu_server (Timestamp)
+                        let jamStr = "--:--";
+                        if(d.waktu_server) {
+                            const dateObj = d.waktu_server.toDate(); // Convert Firestore Timestamp
+                            jamStr = dateObj.toLocaleTimeString('id-ID', {hour12: false});
+                        }
+
+                        const newData = {
+                            nisn: d.nisn,
+                            nama: d.nama,
+                            kelas: d.kelas,
+                            foto: d.foto,
+                            jam: jamStr,
+                            status: d.tipe_absen // "Masuk", "Pulang", "Sakit", "Izin"
+                        };
+
+                        // Cek Duplikat (Update data lama jika ada)
+                        const idx = dataAbsenHariIni.findIndex(x => x.nisn === newData.nisn);
+                        if(idx >= 0) {
+                            dataAbsenHariIni[idx] = newData; // Update status (misal Masuk -> Pulang)
+                        } else {
+                            dataAbsenHariIni.push(newData);
+                            adaDataBaru = true; // Trigger efek flash
+                        }
+                    }
+                });
+
+                // UPDATE SEMUA TAMPILAN
+                updateTampilanLayar(adaDataBaru);
+
+            }, (error) => {
+                console.error("Firebase Error:", error);
+                indicator.innerText = "Connection Lost";
+                indicator.style.color = "red";
+            });
+        }
+
+        function updateTampilanLayar(isNew) {
+            // Filter Data
+            const listHadir = dataAbsenHariIni.filter(d => d.status === "Masuk" || d.status === "Hadir" || d.status === "Pulang");
+            const listIzin = dataAbsenHariIni.filter(d => d.status === "Sakit" || d.status === "Izin");
+            const nisnHadir = dataAbsenHariIni.map(d => d.nisn);
             const listBelum = allSiswa.filter(s => !nisnHadir.includes(s.username));
 
-            document.getElementById('total-populasi').innerText = totalPopulasi;
+            // Statistik
+            const totalPopulasi = allSiswa.length || 1;
+            const countHadir = listHadir.length;
+            const countIzin = listIzin.length;
+            const totalMasuk = countHadir + countIzin;
+
             document.getElementById('total-hadir').innerText = countHadir;
             document.getElementById('total-izin').innerText = countIzin;
             document.getElementById('total-alpha').innerText = listBelum.length;
 
-            let rawPercent = totalPopulasi > 0 ? (totalMasuk / totalPopulasi) * 100 : 0;
-            let derajat = rawPercent * 3.6;
+            // Chart Donut
+            let rawPercent = (totalMasuk / totalPopulasi) * 100;
             if (rawPercent > 100) rawPercent = 100;
-
-            let warnaDonat = rawPercent > 75 ? '#10b981' : (rawPercent > 40 ? '#f59e0b' : '#ef4444'); 
+            let derajat = rawPercent * 3.6;
+            let warnaDonat = rawPercent > 90 ? '#10b981' : (rawPercent > 50 ? '#f59e0b' : '#ef4444');
             
-            const elText = document.getElementById('persen-text');
-            if(elText) {
-                elText.innerText = rawPercent.toFixed(1) + "%";
-                elText.style.color = warnaDonat;
-                elText.style.textShadow = `0 0 10px ${warnaDonat}`;
-            }
+            document.getElementById('persen-text').innerText = rawPercent.toFixed(1) + "%";
+            document.getElementById('persen-text').style.color = warnaDonat;
+            document.getElementById('chart-absen').style.background = `conic-gradient(${warnaDonat} ${derajat}deg, #0f172a 0deg)`;
 
-            const elChart = document.getElementById('chart-absen');
-            if(elChart) { elChart.style.background = `conic-gradient(${warnaDonat} ${derajat}deg, #0f172a 0deg)`; }
-
-            // RENDER LISTS
-            const containerBelum = document.getElementById('list-belum');
-            const msgTooMany = document.getElementById('msg-too-many');
+            // Render List "BELUM HADIR"
+            const divBelum = document.getElementById('list-belum');
             document.getElementById('badge-belum').innerText = listBelum.length;
-
+            
             if(listBelum.length > 50) {
-                containerBelum.innerHTML = ''; 
-                containerBelum.style.display = 'none';
-                msgTooMany.style.display = 'block';
-                msgTooMany.innerHTML = `Masih ada <strong>${listBelum.length}</strong> siswa belum hadir.<br>List disembunyikan agar performa lancar.`;
+                divBelum.innerHTML = ''; divBelum.parentElement.style.display = 'none';
+                document.getElementById('msg-too-many').style.display = 'block';
+                document.getElementById('msg-too-many').innerHTML = `Masih ada <strong>${listBelum.length}</strong> siswa belum hadir.<br>List disembunyikan agar performa lancar.`;
             } else {
-                containerBelum.style.display = 'block';
-                msgTooMany.style.display = 'none';
+                divBelum.parentElement.style.display = 'block';
+                document.getElementById('msg-too-many').style.display = 'none';
                 renderScrollList(listBelum, 'list-belum', 'belum');
             }
 
+            // Render "GASIK" (Terawal)
             let sortedByTime = [...listHadir].sort((a,b) => a.jam.localeCompare(b.jam));
             renderGasik(sortedByTime.slice(0, 10));
 
+            // Render "TERLAMBAT"
             const listTelat = listHadir.filter(d => d.jam > JAM_BATAS_TERLAMBAT);
-            listTelat.sort((a,b) => b.jam.localeCompare(a.jam));
+            listTelat.sort((a,b) => b.jam.localeCompare(a.jam)); // Yang baru telat di atas
             renderScrollList(listTelat, 'list-telat', 'telat');
             document.getElementById('badge-telat').innerText = listTelat.length;
 
+            // Render "LIVE FEED"
+            // Gabung Hadir + Izin, urutkan dari yang TERBARU (jam besar ke kecil)
             const listLive = [...listHadir, ...listIzin].sort((a,b) => b.jam.localeCompare(a.jam));
-            renderLiveFeed(listLive);
+            renderLiveFeed(listLive, isNew);
         }
-        
+
         function renderGasik(data) {
-            const el = document.getElementById('gasik-list');
-            el.innerHTML = '';
+            const el = document.getElementById('gasik-list'); el.innerHTML = '';
             if(data.length === 0) { el.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.5;">Belum ada data.</p>'; return; }
             data.forEach((d, i) => {
                 let cls = i===0 ? 'rank-1' : (i===1 ? 'rank-2' : (i===2 ? 'rank-3' : ''));
@@ -361,41 +416,59 @@
         }
 
         function renderScrollList(data, id, type) {
-            const container = document.getElementById(id);
-            container.innerHTML = ''; 
-            if(data.length === 0) {
-                let msg = type === 'telat' ? 'Nihil (Tertib Semua)' : 'Semua Hadir!';
-                container.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b; font-style:italic;">${msg}</div>`;
-                container.style.animation = 'none'; return;
-            }
-            let durasi = data.length * 2; if(durasi < 10) durasi = 10; 
-            container.style.animation = `scrollUp ${durasi}s linear infinite`;
+            const container = document.getElementById(id); container.innerHTML = '';
+            if(data.length === 0) { container.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b; font-style:italic;">${type==='telat'?'Nihil (Tertib)':'Semua Hadir!'}</div>`; container.style.animation = 'none'; return; }
+            let durasi = data.length * 2; if(durasi < 10) durasi = 10; container.style.animation = `scrollUp ${durasi}s linear infinite`;
             data.forEach(d => {
+                // Handle beda struktur data (Master vs Live)
+                const nama = d.nama || d.name; // Master pakai 'name', Live pakai 'nama'
+                const kelas = d.kelas;
                 if(type === 'telat') {
-                    container.insertAdjacentHTML('beforeend', `<div class="telat-row"><img src="${d.foto}" class="telat-img" onerror="this.src='${DEFAULT_IMG}'"><div><div class="alpha-nama">${d.nama}</div><div class="alpha-kelas">${d.kelas}</div></div><div class="telat-time">${d.jam.substring(0,5)}</div></div>`);
+                    container.insertAdjacentHTML('beforeend', `<div class="telat-row"><img src="${d.foto}" class="telat-img" onerror="this.src='${DEFAULT_IMG}'"><div><div class="alpha-nama">${nama}</div><div class="alpha-kelas" style="font-size:0.7em;">${kelas}</div></div><div class="telat-time">${d.jam.substring(0,5)}</div></div>`);
                 } else {
-                    container.insertAdjacentHTML('beforeend', `<div class="alpha-row"><div><div class="alpha-nama">${d.name}</div><div class="alpha-kelas" style="font-size:0.7em; color:#94a3b8;">${d.kelas}</div></div></div>`);
+                    container.insertAdjacentHTML('beforeend', `<div class="alpha-row"><div><div class="alpha-nama">${nama}</div><div class="alpha-kelas" style="font-size:0.7em; color:#94a3b8;">${kelas}</div></div></div>`);
                 }
             });
             if(data.length > 5) container.innerHTML += container.innerHTML;
         }
 
-        function renderLiveFeed(data) {
-            const container = document.getElementById('live-feed-list');
-            container.innerHTML = '';
+        function renderLiveFeed(data, triggerEffect) {
+            const container = document.getElementById('live-feed-list'); container.innerHTML = '';
+            
+            // EFEK KEDIP JIKA ADA DATA BARU
+            const boxLive = document.getElementById('box-live-container');
+            if(triggerEffect) {
+                boxLive.classList.add('flash-active');
+                try { soundEffect.play(); } catch(e){} // Coba bunyi bip
+                setTimeout(() => boxLive.classList.remove('flash-active'), 500);
+            }
+
             if(data.length === 0) { container.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.5;">Menunggu presensi...</div>'; return; }
-            let durasi = data.length * 3; if(durasi < 15) durasi = 15;
-            container.style.animation = `scrollUp ${durasi}s linear infinite`;
-            data.forEach(d => {
+            let durasi = data.length * 3; if(durasi < 15) durasi = 15; container.style.animation = `scrollUp ${durasi}s linear infinite`;
+            
+            data.forEach((d, i) => {
                 const isTelat = d.jam > JAM_BATAS_TERLAMBAT && !d.status.includes("Izin") && !d.status.includes("Sakit");
                 const statusClass = isTelat ? 'is-telat' : '';
-                container.insertAdjacentHTML('beforeend', `<div class="live-card-big ${statusClass}"><img src="${d.foto}" class="live-img" onerror="this.src='${DEFAULT_IMG}'"><div class="live-info"><div class="live-name">${d.nama}</div><div class="live-class">${d.kelas}</div></div><div class="live-time">${d.jam.substring(0,5)}</div></div>`);
+                const newClass = (i === 0 && triggerEffect) ? 'new-entry' : ''; // Item paling atas dikasih highlight
+                
+                // Animasi masuk
+                setTimeout(() => {
+                    const el = document.getElementById(`live-item-${i}`);
+                    if(el) el.classList.add('show');
+                }, i * 50);
+
+                container.insertAdjacentHTML('beforeend', `<div id="live-item-${i}" class="live-card-big ${statusClass} ${newClass} show"><img src="${d.foto}" class="live-img" onerror="this.src='${DEFAULT_IMG}'"><div class="live-info"><div class="live-name">${d.nama}</div><div class="live-class">${d.kelas}</div></div><div class="live-time">${d.jam.substring(0,5)}</div></div>`);
             });
             if(data.length > 6) container.innerHTML += container.innerHTML;
         }
 
+        // Jam Digital
         setInterval(() => { const now = new Date(); document.getElementById('jam-real').innerText = now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}); document.getElementById('tgl-real').innerText = now.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long'}); }, 1000);
         
+        // Expose function to window for button click
+        window.forceRefreshMaster = () => { if(confirm("Download ulang data siswa terbaru?")) { localStorage.removeItem('cache_master_siswa_v3_php'); location.reload(); } }
+
+        // Start
         document.addEventListener("DOMContentLoaded", loadMasterSiswa);
     </script>
 </body>
