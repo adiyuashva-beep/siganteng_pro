@@ -2,7 +2,7 @@
 session_start();
 // Cek Login Siswa
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || $_SESSION['role'] != 'siswa') {
-    header("location:index.php"); exit();
+    header("location:login.php"); exit();
 }
 $nisn_session = $_SESSION['username'];
 ?>
@@ -204,14 +204,43 @@ $nisn_session = $_SESSION['username'];
 
     <div id="loadingOverlay" class="hidden fixed inset-0 z-[60] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center"><div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div><h5 class="font-black text-slate-800 text-xs tracking-[0.2em] animate-pulse">MEMPROSES...</h5></div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { KODE_SEKOLAH } from "./config_sekolah.js";
+
+        // CONFIG FIREBASE (WAJIB SAMA DI SEMUA FILE)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXWR-_aJyoMrUjTeNQYlcPD8p3eu58yOo",
+            authDomain: "siganteng-absensi.firebaseapp.com",
+            databaseURL: "https://siganteng-absensi-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "siganteng-absensi",
+            storageBucket: "siganteng-absensi.firebasestorage.app",
+            messagingSenderId: "917873420012",
+            appId: "1:917873420012:web:0fe1a9eddc5f94959ba7c9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // DATA SESSION PHP
         const NISN_USER = "<?php echo $nisn_session; ?>";
-        let userSiswa = null; let lokasiUser = null; let map = null; let markerSiswa = null; let streamKamera = null; let tipeAbsenAktif = ""; let tempFotoBukti = null; let configSekolah = {lat:-7.67, lng:109.63, radius:50, mode:'strict'}; let jenisIzinAktif = ""; let isTimelineLoaded = false;
+        
+        let userSiswa = null; 
+        let lokasiUser = null; 
+        let map = null; 
+        let markerSiswa = null; 
+        let streamKamera = null; 
+        let tipeAbsenAktif = ""; 
+        let tempFotoBukti = null; 
+        let configSekolah = {lat:-7.67, lng:109.63, radius:50, mode:'strict'}; 
+        let jenisIzinAktif = ""; 
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             initDataSiswa();
-            mulaiJam(); loadMenuDinamis();
+            mulaiJam(); 
+            loadMenuDinamis();
             setInterval(pantauDataRealtime, 15000); 
             cekGPS();
             
@@ -236,26 +265,73 @@ $nisn_session = $_SESSION['username'];
                 document.getElementById('inputWaSiswa').value = userSiswa.wa_siswa || '';
                 document.getElementById('inputWaOrtu').value = userSiswa.wa_ortu || '';
                 
-                // RENDER MENU SETELAH DATA SISWA DILAD
                 renderMenu(configSekolah.jenjang);
-                
                 pantauDataRealtime();
             });
         }
 
-        // NAVIGASI
+        // --- FUNGSI KIRIM DATA (MODIFIKASI HYBRID FIREBASE) ---
+        window.kirimData = async (tipe, ket, foto) => {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            
+            try {
+                // 1. KIRIM KE FIREBASE (JALAN TOL - WAJIB SUKSES)
+                // Data ini aman di Cloud, gak bakal hilang walaupun server sekolah down
+                await addDoc(collection(db, "presensi_harian"), {
+                    id_sekolah: KODE_SEKOLAH,
+                    nisn: NISN_USER,
+                    nama: userSiswa.nama,
+                    kelas: userSiswa.kelas,
+                    tipe_absen: tipe, // Masuk, Pulang, Izin, Sakit
+                    lat: lokasiUser ? lokasiUser.lat : 0,
+                    lng: lokasiUser ? lokasiUser.lng : 0,
+                    foto: foto,
+                    keterangan: ket,
+                    waktu_server: serverTimestamp(),
+                    tanggal: new Date().toISOString().split('T')[0]
+                });
+
+                // 2. KIRIM KE PHP (JALAN BIASA - USAHAKAN SUKSES)
+                // Ini biar dashboard langsung update "JAM MASUK".
+                // Kalau server PHP down/lemot, kita abaikan errornya (catch) karena data udah aman di Firebase.
+                const pl = { action:'absen', nisn:NISN_USER, tipe:tipe, lat:lokasiUser.lat, lng:lokasiUser.lng, foto:foto, keterangan:ket };
+                fetch('api_siswa.php', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(pl) })
+                .then(r=>r.json())
+                .catch(err => console.log("PHP Server Busy (Aman, data sudah di Firebase)"));
+
+                // 3. SUKSES!
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                tutupKamera();
+                
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: 'Absensi tercatat di Cloud Server!',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    pantauDataRealtime();
+                    if(tipe=='Sakit'||tipe=='Izin') bukaHalaman('page-dashboard');
+                });
+
+            } catch (e) {
+                // Error Firebase (Internet mati total)
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                console.error("Firebase Error:", e);
+                Swal.fire('Gagal', 'Koneksi internet tidak stabil. Coba lagi!', 'error');
+            }
+        }
+
+        // --- NAVIGASI & LAINNYA (TETAP SAMA) ---
         window.renderMenu = (jenjang) => {
             let menu = [];
-            
             if (jenjang === 'sd') {
-                // Menu khusus SD (Simple)
                 menu = [
                     { id: 'btnHebat', label: '7 HEBAT', icon: 'trophy', color: 'text-yellow-500', bg: 'bg-yellow-50', action: "window.location.href='hebat.php'" },
                     { id: 'btnRefleksi', label: 'Jurnal KBM', icon: 'book-open', color: 'text-pink-500', bg: 'bg-pink-50', action: "bukaHalaman('page-refleksi'); loadTimelineKBM();" },
                     { id: 'btnProfil', label: 'Profil', icon: 'user', color: 'text-indigo-500', bg: 'bg-indigo-50', action: "bukaHalaman('page-profil')" }
                 ];
             } else {
-                // Menu SMP/SMA (Ada Absen GPS)
                 menu = [ 
                     { id: 'btnAbsen', label: 'PRESENSI', icon: 'scan-face', color: 'text-blue-500', bg: 'bg-blue-50', action: "bukaHalaman('page-absen'); setTimeout(initMap, 500);" }, 
                     { id: 'btnSakit', label: 'Izin/Sakit', icon: 'thermometer', color: 'text-rose-500', bg: 'bg-rose-50', action: "bukaHalaman('page-sakit')" }, 
@@ -264,7 +340,6 @@ $nisn_session = $_SESSION['username'];
                     { id: 'btnProfil', label: 'Profil', icon: 'user', color: 'text-indigo-500', bg: 'bg-indigo-50', action: "bukaHalaman('page-profil')" } 
                 ];
             }
-            
             const c = document.getElementById('wadah-menu'); c.innerHTML = '';
             menu.forEach(m => { c.innerHTML += `<button onclick="${m.action}" class="flex flex-col items-center gap-2 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition"><div class="${m.bg} ${m.color} p-3 rounded-xl"><i data-lucide="${m.icon}" class="w-6 h-6"></i></div><span class="text-[10px] font-bold text-slate-600 uppercase tracking-tight">${m.label}</span></button>`; });
             lucide.createIcons();
@@ -272,7 +347,6 @@ $nisn_session = $_SESSION['username'];
         window.bukaHalaman = (id) => { document.querySelectorAll('main > div').forEach(d => d.classList.add('hidden-page')); document.getElementById(id).classList.remove('hidden-page'); document.getElementById(id).classList.add('fade-in'); }
         window.kembali = () => { bukaHalaman('page-dashboard'); pantauDataRealtime(); }
 
-        // TIMELINE KBM
         window.loadTimelineKBM = () => {
             const c = document.getElementById('timeline-kbm'); c.innerHTML = '<div class="text-center py-10 text-slate-400 text-xs italic">Memuat...</div>';
             fetch(`api_siswa.php?action=get_timeline&nisn=${NISN_USER}&kelas=${userSiswa.kelas}`).then(r=>r.json()).then(data => {
@@ -290,12 +364,10 @@ $nisn_session = $_SESSION['username'];
             fetch('api_siswa.php', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'kirim_refleksi', nisn:NISN_USER, nama:userSiswa.nama, id_jurnal:id, rating:rate, pesan:msg}) }).then(r=>r.json()).then(res=>{ if(res.status=='success'){ Swal.fire('Sip','Terkirim','success'); loadTimelineKBM(); } });
         }
 
-        // GPS & MAP
         function cekGPS() { if(navigator.geolocation) { navigator.geolocation.watchPosition((p)=>{ lokasiUser={lat:p.coords.latitude, lng:p.coords.longitude}; if(map){ if(!markerSiswa) markerSiswa=L.marker(lokasiUser).addTo(map); else markerSiswa.setLatLng(lokasiUser); const d=map.distance(lokasiUser,[configSekolah.lat, configSekolah.lng]); const r=configSekolah.radius; const b=document.getElementById('jarakBox'); if(configSekolah.mode=='strict'&&d>r){ b.innerText=`JAUH: ${Math.round(d)}m`; b.className="bg-rose-500 text-white text-[10px] font-bold py-2.5 px-4 rounded-xl shadow-lg"; } else { b.innerText="DALAM JANGKAUAN"; b.className="bg-emerald-500 text-white text-[10px] font-bold py-2.5 px-4 rounded-xl shadow-lg"; } } }); } }
         window.initMap = () => { if(map) return; map=L.map('mapMini',{zoomControl:false}).setView([configSekolah.lat, configSekolah.lng],17); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); L.circle([configSekolah.lat, configSekolah.lng], {radius:configSekolah.radius, color:configSekolah.mode=='strict'?'#ef4444':'#10b981'}).addTo(map); }
         window.validasiGPS = () => { if(!lokasiUser) { Swal.fire('GPS','Tunggu lokasi...','info'); return false; } const d=map.distance(lokasiUser,[configSekolah.lat,configSekolah.lng]); if(configSekolah.mode=='strict'&&d>configSekolah.radius) { Swal.fire('Kejauhan',`Jarak: ${Math.round(d)}m`,'error'); return false; } return true; }
 
-        // ABSENSI
         function pantauDataRealtime() {
             fetch(`api_siswa.php?action=cek_status&nisn=${NISN_USER}`).then(r=>r.json()).then(d => {
                 const btnM = document.getElementById('btnMasuk'); const grp = document.getElementById('groupDiSekolah'); const hero = document.getElementById('hero-status');
@@ -313,17 +385,6 @@ $nisn_session = $_SESSION['username'];
             });
         }
         
-        async function kirimData(tipe, ket, foto) {
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-            const pl = { action:'absen', nisn:NISN_USER, tipe:tipe, lat:lokasiUser.lat, lng:lokasiUser.lng, foto:foto, keterangan:ket };
-            fetch('api_siswa.php', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(pl) }).then(r=>r.json()).then(res=>{
-                document.getElementById('loadingOverlay').classList.add('hidden'); tutupKamera();
-                if(res.status=='success') { Swal.fire('Berhasil',res.pesan,'success'); pantauDataRealtime(); if(tipe=='Sakit'||tipe=='Izin') bukaHalaman('page-dashboard'); }
-                else Swal.fire('Gagal',res.pesan,'error');
-            });
-        }
-
-        // KAMERA & LAINNYA
         window.bukaCam = (t) => { tipeAbsenAktif=t; document.getElementById('modalKamera').classList.remove('hidden'); navigator.mediaDevices.getUserMedia({video:{facingMode:'user', aspectRatio:3/4}}).then(s=>{ streamKamera=s; document.getElementById('videoStream').srcObject=s; }); }
         window.tutupKamera = () => { document.getElementById('modalKamera').classList.add('hidden'); if(streamKamera) streamKamera.getTracks().forEach(t=>t.stop()); }
         window.jepretFoto = () => {
@@ -338,22 +399,4 @@ $nisn_session = $_SESSION['username'];
         }
         
         window.pilihFotoGaleri = (t) => { if(t=='profil') document.getElementById('fileInputProfil').click(); else document.getElementById('fileInputBukti').click(); }
-        window.prosesUploadGaleri = (el, t) => { if(el.files[0]) { const r=new FileReader(); r.onload=(e)=>{ const i=new Image(); i.src=e.target.result; i.onload=()=>{ const c=document.createElement('canvas'); c.width=480; c.height=640; c.getContext('2d').drawImage(i,0,0,480,640); const f=c.toDataURL('image/jpeg',0.7); if(t=='profil') fetch('api_siswa.php',{method:'POST',body:JSON.stringify({action:'update_profil',nisn:NISN_USER,foto:f})}).then(()=>{location.reload()}); else { tempFotoBukti=f; document.getElementById('previewBukti').src=f; document.getElementById('previewBukti').classList.remove('hidden'); } } }; r.readAsDataURL(el.files[0]); } }
-
-        window.klikMasuk = () => { if(validasiGPS()) bukaCam("Masuk"); }
-        window.klikPulang = () => { if(validasiGPS()) bukaCam("Pulang"); }
-        window.klikIzinKeluar = () => { const a = prompt("Alasan:"); if(a) kirimData("Izin Keluar", a, "-"); }
-        window.klikKembali = () => { if(validasiGPS()) kirimData("Kembali", "Kembali ke Sekolah", "-"); }
-        window.pilihJenisIzin = (j) => { jenisIzinAktif = j; document.getElementById('areaUploadFoto').classList.remove('hidden'); }
-        window.kirimLaporanIzin = () => { const k = document.getElementById('ketIzin').value; if(!k) return Swal.fire('Isi Keterangan','','warning'); if(jenisIzinAktif=='Sakit' && !tempFotoBukti) return Swal.fire('Foto Wajib','','warning'); kirimData(jenisIzinAktif, k, tempFotoBukti||"-"); }
-        window.simpanDataWA = () => { fetch('api_siswa.php',{method:'POST',body:JSON.stringify({action:'update_wa',nisn:NISN_USER,wa_siswa:document.getElementById('inputWaSiswa').value,wa_ortu:document.getElementById('inputWaOrtu').value})}).then(()=>{Swal.fire('Tersimpan','','success')}); }
-        window.gantiPassword = () => { const p = document.getElementById('inputPassBaru').value; if(p.length<6) return Swal.fire('Pendek','Min 6 char','warning'); fetch('api_siswa.php',{method:'POST',body:JSON.stringify({action:'ganti_password',nisn:NISN_USER,pass:p})}).then(()=>{Swal.fire('Sukses','Login ulang','success'); setTimeout(logout,1500);}); }
-        
-        window.loadMenuDinamis = () => { fetch('api_siswa.php?action=get_menu').then(r=>r.json()).then(d=>{ if(d.length>0){ const c=document.getElementById('grid-menu-dinamis'); c.innerHTML=''; d.forEach(m=>{ c.innerHTML+=`<a href="${m.link_url}" class="p-4 border rounded-2xl text-center active:scale-95"><div class="text-2xl">${m.icon}</div><span class="text-[10px] font-bold uppercase">${m.judul}</span></a>`; }); document.getElementById('section-menu-dinamis').classList.remove('hidden'); } }); }
-        window.mulaiJam = () => { setInterval(()=>{ document.getElementById('jamDigital').innerText=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); document.getElementById('tanggalDigital').innerText=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); },1000); }
-        window.logout = () => window.location.href='logout.php';
-        window.bukaKartu = () => { document.getElementById('modalKartu').classList.remove('hidden'); document.getElementById("qrcode").innerHTML=""; new QRCode(document.getElementById("qrcode"), {text:NISN_USER, width:150, height:150}); }
-        window.tutupKartu = () => document.getElementById('modalKartu').classList.add('hidden');
-    </script>
-</body>
-</html>
+        window.prosesUploadGaleri = (el, t) => { if(el.files[0]) { const r=new FileReader(); r.onload=(e)=>{ const i=new Image(); i.src=e
