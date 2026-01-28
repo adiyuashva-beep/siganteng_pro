@@ -31,11 +31,8 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || !in_array($
             border-radius: 9999px; cursor: pointer; transition: all 0.3s ease-in-out;
             top: 0; left: 0;
         }
-        /* Saat OFF */
         .toggle-checkbox { border-color: #475569; transform: translateX(0); }
-        /* Saat ON */
         .toggle-checkbox:checked { border-color: #10b981; transform: translateX(100%); right: 0; left: auto; }
-        /* Label Background saat ON */
         .toggle-checkbox:checked + .toggle-label { background-color: #10b981; }
     </style>
 </head>
@@ -72,18 +69,45 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || !in_array($
 
         <div id="view-dashboard" class="space-y-6 fade-in">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div><h2 class="text-3xl font-bold text-white">System Monitor</h2><p class="text-slate-400 text-sm">Status Server: <span class="text-emerald-400 font-bold">ONLINE (Localhost)</span></p></div>
-                <button onclick="loadDashboardStats()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-xs transition border border-slate-700"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh Data</button>
+                <div>
+                    <h2 class="text-3xl font-bold text-white">System Monitor</h2>
+                    <p class="text-slate-400 text-sm">Data Source: <span class="text-emerald-400 font-bold flex items-center gap-1 inline-flex"><span class="animate-pulse w-2 h-2 rounded-full bg-emerald-500"></span> HYBRID (Firebase + SQL)</span></p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="window.exportLiveExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-xs transition border border-emerald-500 shadow-lg shadow-emerald-500/20"><i data-lucide="sheet" class="w-4 h-4"></i> Download Absen Hari Ini</button>
+                    <button onclick="loadDashboardStats()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-xs transition border border-slate-700"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync SQL</button>
+                </div>
             </div>
+            
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800"><p class="text-slate-500 text-xs font-bold uppercase">Total Siswa Aktif</p><h3 class="text-3xl font-black text-white mt-1" id="stat-total">0</h3></div>
-                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800"><p class="text-slate-500 text-xs font-bold uppercase">Siswa Hadir Realtime</p><h3 class="text-3xl font-black text-emerald-400 mt-1" id="stat-hadir">0</h3></div>
+                
+                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 relative overflow-hidden group">
+                    <div class="absolute right-0 top-0 h-full w-1 bg-emerald-500"></div>
+                    <p class="text-slate-500 text-xs font-bold uppercase">Hadir Realtime</p>
+                    <h3 class="text-3xl font-black text-emerald-400 mt-1" id="stat-hadir">0</h3>
+                    <p class="text-[10px] text-slate-600 mt-1 animate-pulse">● Live from Cloud</p>
+                </div>
+
                 <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800"><p class="text-slate-500 text-xs font-bold uppercase">Guru Terdaftar</p><h3 class="text-3xl font-black text-orange-400 mt-1" id="stat-guru">0</h3></div>
-                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800"><p class="text-slate-500 text-xs font-bold uppercase">Mode Absen</p><h3 class="text-3xl font-black text-blue-400 mt-1" id="stat-mode">GPS</h3></div>
+                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800"><p class="text-slate-500 text-xs font-bold uppercase">Mode Absen</p><h3 class="text-3xl font-black text-blue-400 mt-1" id="stat-mode">...</h3></div>
             </div>
+
             <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
-                <div class="p-4 border-b border-slate-800"><h3 class="font-bold text-white">Live Traffic Log (10 Terakhir)</h3></div>
-                <div class="overflow-x-auto max-h-96"><table class="w-full text-left text-slate-400"><thead class="bg-slate-950 text-xs uppercase font-bold text-slate-500 sticky top-0"><tr><th class="p-4">Jam</th><th class="p-4">User</th><th class="p-4">Kelas</th><th class="p-4">Status</th></tr></thead><tbody id="tabel-live" class="divide-y divide-slate-800"></tbody></table></div>
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <h3 class="font-bold text-white">Live Traffic Log (Hari Ini)</h3>
+                    <span class="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded font-bold border border-red-500/30">🔴 LIVE FEED</span>
+                </div>
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-left text-slate-400">
+                        <thead class="bg-slate-950 text-xs uppercase font-bold text-slate-500 sticky top-0">
+                            <tr><th class="p-4">Jam</th><th class="p-4">User</th><th class="p-4">Kelas</th><th class="p-4">Status</th></tr>
+                        </thead>
+                        <tbody id="tabel-live" class="divide-y divide-slate-800">
+                            <tr><td colspan="4" class="p-6 text-center italic">Menunggu data masuk...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -116,40 +140,11 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || !in_array($
         <div id="view-menu-manager" class="hidden space-y-6 fade-in">
             <h2 class="text-3xl font-bold text-white">App Builder (Menu Manager)</h2>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
                 <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 h-fit">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-white" id="judulFormMenu">Tambah Tombol Baru</h3>
-                        <button id="btnResetMenu" onclick="resetFormMenu()" class="text-xs text-red-400 hover:text-red-300 hidden font-bold">Batal Edit</button>
-                    </div>
-                    <div class="space-y-4">
-                        <input type="hidden" id="menuId"> <div><label class="text-xs text-slate-500 uppercase font-bold">Target</label><select id="menuTarget" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1 outline-none"><option value="siswa">Siswa</option><option value="guru">Guru</option><option value="umum">Umum</option></select></div>
-                        <div><label class="text-xs text-slate-500 uppercase font-bold">Judul Fitur</label><input type="text" id="menuJudul" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1" placeholder="Contoh: E-Raport"></div>
-                        <div><label class="text-xs text-slate-500 uppercase font-bold">Ikon (Emoji)</label><input type="text" id="menuIcon" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1" placeholder="Contoh: 🎓"></div>
-                        <div><label class="text-xs text-slate-500 uppercase font-bold">Link File</label><input type="text" id="menuLink" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1" placeholder="Contoh: http://... atau file.php"></div>
-                        <div class="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700"><input type="checkbox" id="menuWarna" class="w-4 h-4 cursor-pointer accent-blue-600"><label for="menuWarna" class="text-sm text-slate-300 cursor-pointer select-none">Highlight (Warna Warni)</label></div>
-                        <button onclick="simpanMenuBaru()" id="btnSimpanMenu" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-lg shadow-lg active:scale-95">Terbitkan Tombol</button>
-                    </div>
+                    <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-white" id="judulFormMenu">Tambah Tombol Baru</h3><button id="btnResetMenu" onclick="resetFormMenu()" class="text-xs text-red-400 hover:text-red-300 hidden font-bold">Batal Edit</button></div>
+                    <div class="space-y-4"><input type="hidden" id="menuId"> <div><label class="text-xs text-slate-500 uppercase font-bold">Target</label><select id="menuTarget" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1 outline-none"><option value="siswa">Siswa</option><option value="guru">Guru</option><option value="umum">Umum</option></select></div><div><label class="text-xs text-slate-500 uppercase font-bold">Judul Fitur</label><input type="text" id="menuJudul" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1" placeholder="Contoh: E-Raport"></div><div><label class="text-xs text-slate-500 uppercase font-bold">Ikon (Emoji)</label><input type="text" id="menuIcon" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1" placeholder="Contoh: 🎓"></div><div><label class="text-xs text-slate-500 uppercase font-bold">Link File</label><input type="text" id="menuLink" class="w-full bg-slate-800 text-white p-3 rounded-lg border border-slate-700 mt-1" placeholder="Contoh: http://... atau file.php"></div><div class="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700"><input type="checkbox" id="menuWarna" class="w-4 h-4 cursor-pointer accent-blue-600"><label for="menuWarna" class="text-sm text-slate-300 cursor-pointer select-none">Highlight (Warna Warni)</label></div><button onclick="simpanMenuBaru()" id="btnSimpanMenu" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-lg shadow-lg active:scale-95">Terbitkan Tombol</button></div>
                 </div>
-
-                <div class="lg:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                    <h3 class="font-bold text-white mb-4">Daftar Tombol Aktif</h3>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm text-slate-400">
-                            <thead class="bg-slate-950 text-xs uppercase font-bold text-slate-500">
-                                <tr>
-                                    <th class="p-3">Target</th>
-                                    <th class="p-3">Ikon</th>
-                                    <th class="p-3">Judul</th>
-                                    <th class="p-3 text-center">Status</th>
-                                    <th class="p-3 text-right">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tbody-menu-list" class="divide-y divide-slate-800">
-                                </tbody>
-                        </table>
-                    </div>
-                </div>
+                <div class="lg:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800"><h3 class="font-bold text-white mb-4">Daftar Tombol Aktif</h3><div class="overflow-x-auto"><table class="w-full text-left text-sm text-slate-400"><thead class="bg-slate-950 text-xs uppercase font-bold text-slate-500"><tr><th class="p-3">Target</th><th class="p-3">Ikon</th><th class="p-3">Judul</th><th class="p-3 text-center">Status</th><th class="p-3 text-right">Aksi</th></tr></thead><tbody id="tbody-menu-list" class="divide-y divide-slate-800"></tbody></table></div></div>
             </div>
         </div>
 
@@ -167,7 +162,7 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || !in_array($
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            loadDashboardStats();
+            loadDashboardStats(); // Load data PHP (Total user)
             loadAllUsers();
             loadMapel();
             loadMenuManager();
@@ -191,8 +186,17 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || !in_array($
             document.getElementById(`area-input-${mode}`).classList.remove('hidden'); document.getElementById(`btn-tab-${mode}`).classList.replace('bg-slate-800', 'bg-blue-600'); document.getElementById(`btn-tab-${mode}`).classList.replace('text-slate-400', 'text-white');
         }
 
-        // 2. DASHBOARD & DATA USER
-        function loadDashboardStats() { fetch('api_admin.php?action=get_dashboard_stats').then(r=>r.json()).then(d => { document.getElementById('stat-total').innerText = d.total_siswa; document.getElementById('stat-guru').innerText = d.total_guru; document.getElementById('stat-hadir').innerText = d.hadir_realtime; document.getElementById('stat-mode').innerText = d.mode_gps == 'strict' ? 'GPS DISIPLIN' : 'GPS BEBAS'; document.getElementById('stat-mode').className = d.mode_gps == 'strict' ? "text-3xl font-black text-blue-400 mt-1" : "text-3xl font-black text-yellow-400 mt-1"; const tbl = document.getElementById('tabel-live'); tbl.innerHTML = ''; d.logs.forEach(l => { tbl.innerHTML += `<tr class="border-b border-slate-800 hover:bg-slate-800/50"><td class="p-4 text-emerald-400 font-mono text-xs">${l.jam}</td><td class="p-4 text-white font-bold">${l.nama}</td><td class="p-4 text-xs text-slate-400">${l.kelas}</td><td class="p-4 text-xs font-bold text-slate-500 bg-slate-900 rounded">${l.status}</td></tr>`; }); }); }
+        // 2. DASHBOARD (PHP PART) - HANYA LOAD DATA STATIS
+        function loadDashboardStats() { 
+            fetch('api_admin.php?action=get_dashboard_stats').then(r=>r.json()).then(d => { 
+                document.getElementById('stat-total').innerText = d.total_siswa; 
+                document.getElementById('stat-guru').innerText = d.total_guru; 
+                // STAT-HADIR & TABLE LIVE DI-HANDLE FIREBASE DI BAWAH
+                document.getElementById('stat-mode').innerText = d.mode_gps == 'strict' ? 'GPS DISIPLIN' : 'GPS BEBAS'; 
+                document.getElementById('stat-mode').className = d.mode_gps == 'strict' ? "text-3xl font-black text-blue-400 mt-1" : "text-3xl font-black text-yellow-400 mt-1"; 
+            }); 
+        }
+
         function loadAllUsers() { fetch('api_admin.php?action=get_all_users').then(r=>r.json()).then(data => { listUsers = data; }); }
         window.cariUser = () => { const key = document.getElementById('cariUserBox').value.toLowerCase(); const tbody = document.getElementById('tabel-hasil-cari'); tbody.innerHTML = ''; if(key.length < 3) { tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center italic">Ketik minimal 3 huruf...</td></tr>'; return; } const hasil = listUsers.filter(u => u.nama.toLowerCase().includes(key) || u.username.includes(key)); if(hasil.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-400">Tidak ditemukan.</td></tr>'; return; } hasil.slice(0,10).forEach(s => { let badge = s.role == 'siswa' ? 'bg-slate-700' : 'bg-orange-600'; tbody.innerHTML += `<tr class="border-b border-slate-800 hover:bg-slate-800"><td class="p-3 text-white font-bold">${s.nama}</td><td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${badge} text-white">${s.role}</span></td><td class="p-3 font-mono text-xs text-blue-400">${s.username}</td><td class="p-3 text-xs text-slate-400">${s.kelas}</td><td class="p-3 text-right flex justify-end gap-2"><button onclick="hapusUser('${s.username}','${s.role}')" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs font-bold transition">Hapus</button></td></tr>`; }); }
         window.simpanManual = (role) => { const fd = new FormData(); fd.append('action', 'simpan_manual'); fd.append('role', role); if(role == 'siswa') { fd.append('nama', document.getElementById('manualNamaSiswa').value); fd.append('username', document.getElementById('manualNISN').value); fd.append('password', document.getElementById('manualNISN').value); fd.append('kelas', document.getElementById('manualKelas').value); } else { fd.append('nama', document.getElementById('manualNamaGuru').value); fd.append('username', document.getElementById('manualNIP').value); fd.append('password', document.getElementById('manualNIP').value); } fetch('api_admin.php', {method:'POST', body:fd}).then(r=>r.json()).then(res => { if(res.status == 'success') { Swal.fire('Sukses','','success'); loadAllUsers(); } else Swal.fire('Gagal', res.pesan, 'error'); }); }
@@ -212,103 +216,110 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login" || !in_array($
         window.updateLabelStatus = () => { const o = document.getElementById('toggleGPS').checked; const b = document.getElementById('statusGPSBadge'); b.innerText = o ? "MODE DISIPLIN: AKTIF" : "MODE DARURAT (BEBAS)"; b.className = o ? "inline-block px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-emerald-900 text-emerald-400" : "inline-block px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-red-900 text-red-400"; }
         window.logout = () => window.location.href='logout.php';
 
-        // 4. MENU MANAGER (LOGIKA EDIT & ON/OFF) - VERSI RAPI
+        // 4. MENU MANAGER
         function loadMenuManager() {
             fetch('api_admin.php?action=get_menu').then(r=>r.json()).then(d => {
                 const tb = document.getElementById('tbody-menu-list'); tb.innerHTML = '';
                 d.forEach(m => {
                     const statusCheck = m.is_active == 1 ? 'checked' : '';
-                    
-                    tb.innerHTML += `
-                    <tr class="hover:bg-slate-800 border-b border-slate-800">
-                        <td class="p-3 uppercase text-blue-400 font-bold text-xs">${m.target_user}</td>
-                        <td class="p-3 text-xl">${m.icon}</td>
-                        <td class="p-3">
-                            <p class="text-white font-bold text-sm">${m.judul}</p>
-                            <p class="text-xs text-slate-500 font-mono truncate max-w-[150px]">${m.link_url}</p>
-                        </td>
-                        <td class="p-3 text-center">
-                            <div class="relative inline-block w-10 h-5 align-middle select-none">
-                                <input type="checkbox" ${statusCheck} onchange="toggleMenu('${m.id_menu}', this.checked)" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-2 appearance-none cursor-pointer"/>
-                                <label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer"></label>
-                            </div>
-                        </td>
-                        <td class="p-3 text-right">
-                            <button onclick="editMenu('${m.id_menu}')" class="text-blue-500 hover:bg-blue-500/10 p-2 rounded mr-1" title="Edit"><i data-lucide="edit" class="w-4 h-4"></i></button>
-                            <button onclick="hapusMenu('${m.id_menu}')" class="text-red-500 hover:bg-red-500/10 p-2 rounded" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        </td>
-                    </tr>`;
+                    tb.innerHTML += `<tr class="hover:bg-slate-800 border-b border-slate-800"><td class="p-3 uppercase text-blue-400 font-bold text-xs">${m.target_user}</td><td class="p-3 text-xl">${m.icon}</td><td class="p-3"><p class="text-white font-bold text-sm">${m.judul}</p><p class="text-xs text-slate-500 font-mono truncate max-w-[150px]">${m.link_url}</p></td><td class="p-3 text-center"><div class="relative inline-block w-10 h-5 align-middle select-none"><input type="checkbox" ${statusCheck} onchange="toggleMenu('${m.id_menu}', this.checked)" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-2 appearance-none cursor-pointer"/><label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer"></label></div></td><td class="p-3 text-right"><button onclick="editMenu('${m.id_menu}')" class="text-blue-500 hover:bg-blue-500/10 p-2 rounded mr-1" title="Edit"><i data-lucide="edit" class="w-4 h-4"></i></button><button onclick="hapusMenu('${m.id_menu}')" class="text-red-500 hover:bg-red-500/10 p-2 rounded" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
                 });
                 lucide.createIcons();
             });
         }
+        window.simpanMenuBaru = () => { const fd = new FormData(); fd.append('action','simpan_menu'); fd.append('id_menu', document.getElementById('menuId').value); fd.append('target', document.getElementById('menuTarget').value); fd.append('judul', document.getElementById('menuJudul').value); fd.append('icon', document.getElementById('menuIcon').value); fd.append('link', document.getElementById('menuLink').value); fd.append('highlight', document.getElementById('menuWarna').checked); fetch('api_admin.php',{method:'POST',body:fd}).then(r=>r.json()).then(res => { if(res.status == 'success') { Swal.fire('Berhasil','Data tersimpan','success'); resetFormMenu(); loadMenuManager(); } else { Swal.fire('Gagal', res.pesan, 'error'); } }); }
+        window.editMenu = (id) => { fetch(`api_admin.php?action=get_menu_detail&id=${id}`).then(r=>r.json()).then(d => { document.getElementById('menuId').value = d.id_menu; document.getElementById('menuTarget').value = d.target_user; document.getElementById('menuJudul').value = d.judul; document.getElementById('menuIcon').value = d.icon; document.getElementById('menuLink').value = d.link_url; document.getElementById('menuWarna').checked = d.highlight == 1; document.getElementById('judulFormMenu').innerText = "Edit Tombol"; document.getElementById('btnSimpanMenu').innerText = "Simpan Perubahan"; document.getElementById('btnResetMenu').classList.remove('hidden'); document.getElementById('btnSimpanMenu').classList.replace('bg-gradient-to-r', 'bg-emerald-600'); }); }
+        window.resetFormMenu = () => { document.getElementById('menuId').value = ''; document.getElementById('menuTarget').value = 'siswa'; document.getElementById('menuJudul').value = ''; document.getElementById('menuIcon').value = ''; document.getElementById('menuLink').value = ''; document.getElementById('menuWarna').checked = false; document.getElementById('judulFormMenu').innerText = "Tambah Tombol Baru"; document.getElementById('btnSimpanMenu').innerText = "Terbitkan Tombol"; document.getElementById('btnResetMenu').classList.add('hidden'); document.getElementById('btnSimpanMenu').classList.replace('bg-emerald-600', 'bg-gradient-to-r'); }
+        window.toggleMenu = (id, status) => { const fd = new FormData(); fd.append('action','toggle_menu'); fd.append('id',id); fd.append('status',status); fetch('api_admin.php',{method:'POST',body:fd}); }
+        window.hapusMenu = (id) => { if(confirm('Hapus menu ini?')){ const fd=new FormData(); fd.append('action','hapus_menu'); fd.append('id',id); fetch('api_admin.php',{method:'POST',body:fd}).then(loadMenuManager); } }
+    </script>
 
-        window.simpanMenuBaru = () => {
-            const fd = new FormData(); fd.append('action','simpan_menu');
-            fd.append('id_menu', document.getElementById('menuId').value); // Kirim ID (kosong = baru, ada = edit)
-            fd.append('target', document.getElementById('menuTarget').value);
-            fd.append('judul', document.getElementById('menuJudul').value);
-            fd.append('icon', document.getElementById('menuIcon').value);
-            fd.append('link', document.getElementById('menuLink').value);
-            fd.append('highlight', document.getElementById('menuWarna').checked);
-            
-            fetch('api_admin.php',{method:'POST',body:fd}).then(r=>r.json()).then(res => {
-                if(res.status == 'success') {
-                    Swal.fire('Berhasil','Data tersimpan','success');
-                    resetFormMenu();
-                    loadMenuManager();
-                } else {
-                    Swal.fire('Gagal', res.pesan, 'error');
-                }
-            });
-        }
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { KODE_SEKOLAH } from "./config_sekolah.js";
 
-        window.editMenu = (id) => {
-            fetch(`api_admin.php?action=get_menu_detail&id=${id}`).then(r=>r.json()).then(d => {
-                // Isi Form dengan data lama
-                document.getElementById('menuId').value = d.id_menu;
-                document.getElementById('menuTarget').value = d.target_user;
-                document.getElementById('menuJudul').value = d.judul;
-                document.getElementById('menuIcon').value = d.icon;
-                document.getElementById('menuLink').value = d.link_url;
-                document.getElementById('menuWarna').checked = d.highlight == 1;
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXWR-_aJyoMrUjTeNQYlcPD8p3eu58yOo",
+            authDomain: "siganteng-absensi.firebaseapp.com",
+            databaseURL: "https://siganteng-absensi-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "siganteng-absensi",
+            storageBucket: "siganteng-absensi.firebasestorage.app",
+            messagingSenderId: "917873420012",
+            appId: "1:917873420012:web:0fe1a9eddc5f94959ba7c9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        let realtimeData = [];
+
+        // START LISTENER REALTIME
+        function startLiveMonitor() {
+            const today = new Date().toISOString().split('T')[0];
+            const q = query(
+                collection(db, "presensi_harian"),
+                where("id_sekolah", "==", KODE_SEKOLAH),
+                where("tanggal", "==", today)
+            );
+
+            onSnapshot(q, (snapshot) => {
+                let hadir = 0;
+                let logHTML = '';
+                realtimeData = [];
+
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if(d.tipe_absen === 'Masuk' || d.tipe_absen === 'Hadir' || d.tipe_absen === 'Pulang') hadir++;
+                    
+                    let jam = "--:--";
+                    if(d.waktu_server) jam = d.waktu_server.toDate().toLocaleTimeString('id-ID', {hour12: false});
+                    
+                    // Simpan ke array untuk Export Excel
+                    d.jamStr = jam;
+                    realtimeData.push(d);
+                });
+
+                // 1. Update Angka Hadir
+                document.getElementById('stat-hadir').innerText = hadir;
+
+                // 2. Update Tabel Log (Ambil 10 Terakhir)
+                // Urutkan dari yang terbaru (descending)
+                realtimeData.sort((a,b) => b.jamStr.localeCompare(a.jamStr));
                 
-                // Ubah Tampilan Tombol jadi Mode Edit
-                document.getElementById('judulFormMenu').innerText = "Edit Tombol";
-                document.getElementById('btnSimpanMenu').innerText = "Simpan Perubahan";
-                document.getElementById('btnResetMenu').classList.remove('hidden');
-                document.getElementById('btnSimpanMenu').classList.replace('bg-gradient-to-r', 'bg-emerald-600'); // Ganti warna jadi Hijau
+                if(realtimeData.length === 0) {
+                    logHTML = '<tr><td colspan="4" class="p-6 text-center italic">Belum ada data masuk...</td></tr>';
+                } else {
+                    realtimeData.slice(0, 10).forEach(d => {
+                        let color = d.tipe_absen.includes('Sakit') ? 'text-yellow-500' : (d.tipe_absen.includes('Izin') ? 'text-blue-400' : 'text-emerald-400');
+                        logHTML += `<tr class="border-b border-slate-800 hover:bg-slate-800/50"><td class="p-4 text-emerald-400 font-mono text-xs">${d.jamStr}</td><td class="p-4 text-white font-bold">${d.nama}</td><td class="p-4 text-xs text-slate-400">${d.kelas}</td><td class="p-4 text-xs font-bold ${color}">${d.tipe_absen}</td></tr>`;
+                    });
+                }
+                document.getElementById('tabel-live').innerHTML = logHTML;
             });
         }
 
-        window.resetFormMenu = () => {
-            // Kosongkan Form
-            document.getElementById('menuId').value = '';
-            document.getElementById('menuTarget').value = 'siswa';
-            document.getElementById('menuJudul').value = '';
-            document.getElementById('menuIcon').value = '';
-            document.getElementById('menuLink').value = '';
-            document.getElementById('menuWarna').checked = false;
+        // FUNGSI EXPORT EXCEL DARI DATA FIREBASE
+        window.exportLiveExcel = () => {
+            if(realtimeData.length === 0) return Swal.fire('Kosong','Belum ada data hari ini','info');
             
-            // Kembalikan Tampilan Tombol
-            document.getElementById('judulFormMenu').innerText = "Tambah Tombol Baru";
-            document.getElementById('btnSimpanMenu').innerText = "Terbitkan Tombol";
-            document.getElementById('btnResetMenu').classList.add('hidden');
-            document.getElementById('btnSimpanMenu').classList.replace('bg-emerald-600', 'bg-gradient-to-r'); // Balik warna biru
+            const dataExcel = realtimeData.map(d => ({
+                "Jam": d.jamStr,
+                "Nama Siswa": d.nama,
+                "NISN": d.nisn,
+                "Kelas": d.kelas,
+                "Status": d.tipe_absen,
+                "Keterangan": d.keterangan || '-',
+                "Koordinat": d.lat + ", " + d.lng
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(dataExcel);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Absensi Hari Ini");
+            XLSX.writeFile(wb, `Absensi_Live_${new Date().toISOString().split('T')[0]}.xlsx`);
         }
 
-        window.toggleMenu = (id, status) => {
-            // Update On/Off tanpa refresh
-            const fd = new FormData(); fd.append('action','toggle_menu'); fd.append('id',id); fd.append('status',status);
-            fetch('api_admin.php',{method:'POST',body:fd}); 
-        }
-
-        window.hapusMenu = (id) => { 
-            if(confirm('Hapus menu ini?')){ 
-                const fd=new FormData(); fd.append('action','hapus_menu'); fd.append('id',id); 
-                fetch('api_admin.php',{method:'POST',body:fd}).then(loadMenuManager); 
-            } 
-        }
+        // Jalankan
+        startLiveMonitor();
     </script>
 </body>
 </html>
